@@ -1,1 +1,1 @@
-# LegalAIAgent
+# LegalAIAgent - Hazel
