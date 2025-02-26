@@ -5,12 +5,13 @@ from app.config import settings
 from app import models
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Document, Result, DocumentStatus
+from app.models import Document, Result, DocumentStatus, TaskType
 from app.services.pdf_service import extract_text_from_pdf
 from app.services.gpt_service import generate_legal_document
 from fastapi import Depends, HTTPException
 from datetime import datetime
 from sqlalchemy import text
+import re
 
 # 配置OpenAI API密钥
 openai.api_key = settings.OPENAI_API_KEY
@@ -91,81 +92,61 @@ def generate_legal_document(document_id, text_content, task_type, db: Session):
         print(f"AI处理错误: {str(e)}")
         raise Exception(f"AI处理错误: {str(e)}")
 
-async def process_document(file_id: int, task_type: str, db: Session):
+async def process_document(text, task_type):
     """
-    处理文档并生成简单输出（PDF 的第一句话）
-    
-    Args:
-        file_id: 文档ID
-        task_type: 任务类型，如 "TASK1"
-        db: 数据库会话
+    根据任务类型处理文档
     """
-    # 获取文档
-    document = db.query(Document).filter(Document.id == file_id).first()
-    if not document:
-        raise HTTPException(status_code=404, detail=f"Document with ID {file_id} not found")
-    
-    try:
-        # 更新文档状态为处理中
-        document.status = DocumentStatus.PROCESSING
-        db.commit()
-        
-        # 从PDF提取文本
-        text = extract_text_from_pdf(document.file_path)
-        
-        # 简单处理：获取第一句话（以句号、问号或感叹号结尾）
-        first_sentence = ""
-        if text:
-            # 尝试找到第一个句子结束的位置
-            for end_char in ['.', '?', '!']:
-                pos = text.find(end_char)
-                if pos > 0:
-                    first_sentence = text[:pos+1]
-                    break
-            
-            # 如果没有找到句子结束符，就取前100个字符
-            if not first_sentence:
-                first_sentence = text[:min(100, len(text))] + "..."
-        else:
-            first_sentence = "无法从PDF中提取文本内容。"
-        
-        # 添加任务类型信息
-        result_content = f"任务类型: {task_type}\n\nPDF第一句话: {first_sentence}\n\n(这是一个简化的输出，用于测试系统功能。)"
-        
-        # 使用原始 SQL 查询检查是否已有结果记录
-        check_result_query = text("SELECT id FROM results WHERE document_id = :doc_id")
-        existing_result = db.execute(check_result_query, {"doc_id": file_id}).first()
-        
-        if existing_result:
-            # 更新现有结果
-            update_query = text("UPDATE results SET content = :content, updated_at = :updated_at WHERE document_id = :doc_id")
-            db.execute(update_query, {
-                "content": result_content,
-                "updated_at": datetime.utcnow(),
-                "doc_id": file_id
-            })
-        else:
-            # 创建新的结果记录
-            insert_query = text("INSERT INTO results (document_id, content, created_at, updated_at) VALUES (:doc_id, :content, :created_at, :updated_at)")
-            db.execute(insert_query, {
-                "doc_id": file_id,
-                "content": result_content,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
-            })
-        
-        # 更新文档状态为已完成
-        document.status = DocumentStatus.COMPLETED
-        db.commit()
-        
-        return {"status": "success", "message": "Document processed successfully"}
-        
-    except Exception as e:
-        # 更新文档状态为失败
-        document.status = DocumentStatus.FAILED
-        db.commit()
-        print(f"Error processing document: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
+    if task_type == TaskType.TASK1:
+        # 提取第一句话
+        return extract_first_sentence(text)
+    elif task_type == TaskType.TASK2:
+        # 构建有说服力的论点
+        return build_persuasive_arguments(text)
+    elif task_type == TaskType.TASK3:
+        # 完善法律策略
+        return refine_legal_strategy(text)
+    elif task_type == TaskType.TASK4:
+        # 关于法律的问题
+        return answer_about_law(text)
+    elif task_type == TaskType.TASK5:
+        # 查找案例
+        return find_case(text)
+    else:
+        return "未知的任务类型"
+
+def extract_first_sentence(text):
+    """
+    提取文本中的第一句话
+    """
+    # 使用正则表达式匹配第一个句子（以句号、问号或感叹号结尾）
+    match = re.search(r'([^.!?]+[.!?])', text)
+    if match:
+        first_sentence = match.group(1).strip()
+        return f'PDF文件的第一句话是：\n\n"{first_sentence}"'  # 使用英文引号
+    else:
+        # 如果没有找到句号等标点，则返回前100个字符
+        first_part = text[:100].strip() + "..." if len(text) > 100 else text.strip()
+        return f'PDF文件的开头内容是：\n\n"{first_part}"'  # 使用英文引号
+
+def build_persuasive_arguments(text):
+    """构建有说服力的论点"""
+    # 暂时只返回第一句话
+    return extract_first_sentence(text)
+
+def refine_legal_strategy(text):
+    """完善法律策略"""
+    # 暂时只返回第一句话
+    return extract_first_sentence(text)
+
+def answer_about_law(text):
+    """回答关于法律的问题"""
+    # 暂时只返回第一句话
+    return extract_first_sentence(text)
+
+def find_case(text):
+    """查找相关案例"""
+    # 暂时只返回第一句话
+    return extract_first_sentence(text)
 
 async def get_result(file_id: int, db: Session):
     """

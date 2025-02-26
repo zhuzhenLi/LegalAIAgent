@@ -3,11 +3,9 @@ from typing import List
 import os
 import uuid
 from app.services.pdf_service import extract_text_from_pdf
+from datetime import datetime
 
-router = APIRouter(
-    prefix="/documents",
-    tags=["documents"]
-)
+router = APIRouter()
 
 # 存储上传的文件信息
 uploaded_files = {}
@@ -15,70 +13,57 @@ uploaded_files = {}
 @router.post("/upload")
 async def upload_document(
     files: List[UploadFile] = File(...),
-    task_type: str = Form(...)
+    task_type: str = Form(default="default")  # 使用默认值，而不是允许None
 ):
     """
     上传文档
     
     Args:
         files: 上传的文件列表
-        task_type: 任务类型，如 "TASK1"
+        task_type: 任务类型
         
     Returns:
         dict: 包含上传结果的字典
     """
-    # 验证任务类型
-    valid_task_types = ["TASK1", "TASK2", "TASK3", "TASK4", "TASK5"]
+    # 创建上传目录
+    upload_dir = "uploads"
+    os.makedirs(upload_dir, exist_ok=True)
     
-    if task_type not in valid_task_types:
-        print(f"Warning: Unknown task_type '{task_type}'")
-    
-    # 处理上传的文件
     uploaded_documents = []
     
     for file in files:
-        try:
-            # 创建上传目录
-            upload_dir = "uploads"
-            os.makedirs(upload_dir, exist_ok=True)
-            
-            # 生成唯一文件名
-            file_extension = os.path.splitext(file.filename)[1]
-            unique_filename = f"{uuid.uuid4()}{file_extension}"
-            file_path = os.path.join(upload_dir, unique_filename)
-            
-            # 保存文件
-            with open(file_path, "wb") as f:
-                f.write(await file.read())
-            
-            # 提取文本
-            text = extract_text_from_pdf(file_path)
-            text_length = len(text)
-            
-            # 生成文件ID
-            file_id = len(uploaded_files) + 1
-            
-            # 存储文件信息
-            uploaded_files[file_id] = {
-                "id": file_id,
-                "filename": file.filename,
-                "file_path": file_path,
-                "task_type": task_type,
-                "text": text,
-                "status": "uploaded"
-            }
-            
-            # 添加到上传文档列表
-            uploaded_documents.append({
-                "file_id": file_id,
-                "filename": file.filename,
-                "task_type": task_type,
-                "text_length": text_length,
-                "status": "uploaded"
-            })
-            
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"处理文件 {file.filename} 时出错: {str(e)}")
+        # 生成唯一文件ID
+        file_id = len(uploaded_files) + 1
+        
+        # 保存文件
+        file_path = os.path.join(upload_dir, file.filename)
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # 提取文本
+        text = extract_text_from_pdf(file_path)
+        text_length = len(text)
+        
+        # 存储文档信息
+        uploaded_files[file_id] = {
+            "id": file_id,
+            "filename": file.filename,
+            "file_path": file_path,
+            "task_type": task_type,  # 使用提供的任务类型
+            "text": text,
+            "text_length": text_length,
+            "status": "uploaded",
+            "upload_time": datetime.now().isoformat()
+        }
+        
+        uploaded_documents.append({
+            "id": file_id,
+            "filename": file.filename,
+            "task_type": task_type,  # 使用提供的任务类型
+            "text_length": text_length,
+            "status": "uploaded"
+        })
     
     return {
         "message": f"成功上传 {len(uploaded_documents)} 个文件",

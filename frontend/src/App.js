@@ -1,29 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import UploadBox from './components/UploadBox';
 import ChatBox from './components/ChatBox';
 import ChatHistory from './components/ChatHistory';
 import ActionButtons from './components/ActionButtons';
-import { uploadFiles, connectWebSocket, pollForResults, processDocument } from './api';
+import { uploadFiles, processDocument, pollForResults } from './api';
 import Logo from './components/Logo';
-import axios from 'axios';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-
-const TASK_TYPES = [
-  { id: 'TASK1', name: 'Analyze Documents' },
-  { id: 'TASK2', name: 'Build Persuasive Arguments' },
-  { id: 'TASK3', name: 'Refine Legal Strategy' },
-  { id: 'TASK4', name: 'Ask About the Law' },
-  { id: 'TASK5', name: 'Find a Case' }
-];
+import './App.css';
 
 function App() {
   const [files, setFiles] = useState([]);
-  const [taskType, setTaskType] = useState('TASK1');
+  const [uploadedFiles, setUploadedFiles] = useState([]);
   const [messages, setMessages] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
   const [currentResponse, setCurrentResponse] = useState('');
   const [chatHistory, setChatHistory] = useState([
     { id: 1, title: 'Legal Document Generation', date: '2023-12-01', active: true },
@@ -31,14 +20,11 @@ function App() {
     { id: 3, title: 'Legal Consultation', date: '2023-11-25', active: false },
   ]);
   const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showHelp, setShowHelp] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showExport, setShowExport] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showSidebar, setShowSidebar] = useState(!isMobile);
   const [filesUploaded, setFilesUploaded] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Handle text updates from WebSocket or polling
   const handleTextUpdate = (text) => {
@@ -54,62 +40,6 @@ function App() {
       setIsTyping(false);
     }
   }, [isProcessing, currentResponse]);
-
-  const handleSubmit = async () => {
-    if (files.length === 0) {
-      alert('Please upload at least one PDF file');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      setIsProcessing(true);
-      setIsTyping(true);
-      
-      // 添加用户消息，显示上传的文件名
-      const fileNames = files.map(file => file.name).join(', ');
-      const userMessage = `Uploaded files: ${fileNames}`;
-      
-      setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
-      
-      // 上传文件到后端
-      const response = await uploadFiles(files, taskType);
-      
-      // 设置文件已上传标志
-      setFilesUploaded(true);
-      
-      // 显示收到的PDF名称
-      if (response.documents && response.documents.length > 0) {
-        const receivedFiles = response.documents.map(doc => doc.filename).join(', ');
-        setMessages(prev => [...prev, { 
-          sender: 'ai', 
-          text: `Received PDF files: ${receivedFiles}` 
-        }]);
-        
-        const fileId = response.documents[0].id;
-        
-        // 处理文档
-        await processDocument(fileId, taskType);
-        
-        // 轮询结果
-        await pollForResults(fileId, handleTextUpdate);
-      } else {
-        throw new Error('No document ID returned from server');
-      }
-    } catch (err) {
-      setError(err.message || 'An error occurred');
-    } finally {
-      setIsLoading(false);
-      setIsProcessing(false);
-    }
-  };
-
-  const handleClear = () => {
-    setFiles([]);
-    setCurrentResponse('');
-    setIsTyping(false);
-  };
 
   const handleNewChat = () => {
     setMessages([]);
@@ -131,13 +61,13 @@ function App() {
 
   const handleActionButton = (taskId, actionLabel) => {
     console.log("Action button clicked:", taskId, actionLabel);
-    if (!files.length) {
+    if (uploadedFiles.length === 0) {
       setError("Please upload a document first");
       return;
     }
     
     // 显示用户选择的操作和文件名
-    const fileNames = files.map(file => file.name).join(', ');
+    const fileNames = uploadedFiles.map(file => file.filename).join(', ');
     setMessages(prev => [...prev, { 
       sender: 'user', 
       text: `Please ${actionLabel} for files: ${fileNames}` 
@@ -147,42 +77,94 @@ function App() {
     handleProcessDocument(taskId);
   };
 
-  const handleProcessDocument = async (taskType) => {
-    console.log("Processing document with task type:", taskType);
+  // 添加一个新的函数，专门用于上传文件
+  const handleFileUpload = async (filesToUpload) => {
+    if (!filesToUpload || filesToUpload.length === 0) {
+      return;
+    }
+    
     try {
-      setIsLoading(true);
-      setError(null);
-      setIsProcessing(true);
-      setIsTyping(true);
+      // 上传文件，使用默认任务类型
+      const response = await uploadFiles(filesToUpload, "default");
+      console.log("Upload response:", response);
       
-      // 上传文件到后端
-      const response = await uploadFiles(files, taskType);
-      
-      // 设置文件已上传标志
-      setFilesUploaded(true);
-      
-      // 显示收到的PDF名称
-      if (response.documents && response.documents.length > 0) {
-        const receivedFiles = response.documents.map(doc => doc.filename).join(', ');
-        setMessages(prev => [...prev, { 
-          sender: 'ai', 
-          text: `Received PDF files: ${receivedFiles}` 
-        }]);
+      if (response && response.documents) {
+        // 更新上传成功的文件列表
+        setUploadedFiles(response.documents.map(doc => ({
+          id: doc.id,
+          filename: doc.filename,
+          status: 'uploaded'
+        })));
         
-        const fileId = response.documents[0].id;
+        // 设置文件已上传标志
+        setFilesUploaded(true);
         
-        // 处理文档
-        await processDocument(fileId, taskType);
-        
-        // 轮询结果
-        await pollForResults(fileId, handleTextUpdate);
+        return response;
       } else {
-        throw new Error('No document ID returned from server');
+        console.error("Invalid response format:", response);
+        setError("Invalid response from server");
+        return null;
       }
     } catch (err) {
+      console.error("Upload error:", err);
+      setError(err.message || 'Error uploading files');
+      return null;
+    }
+  };
+
+  // 修改文件选择处理函数，在选择文件后自动上传
+  const handleFileChange = async (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    if (selectedFiles.length > 0) {
+      console.log("Selected files:", selectedFiles);
+      setFiles(selectedFiles);
+      
+      // 自动上传选择的文件
+      await handleFileUpload(selectedFiles);
+    }
+  };
+
+  // 修改拖放处理函数，在拖放文件后自动上传
+  const handleDrop = async (acceptedFiles) => {
+    if (acceptedFiles.length > 0) {
+      console.log("Dropped files:", acceptedFiles);
+      setFiles(acceptedFiles);
+      
+      // 自动上传拖放的文件
+      await handleFileUpload(acceptedFiles);
+    }
+  };
+
+  // 修改处理文档函数，不再上传文件，只处理已上传的文件
+  const handleProcessDocument = async (taskType) => {
+    console.log("Processing document with task type:", taskType);
+    setError(null);
+    
+    if (uploadedFiles.length === 0) {
+      setError('请先上传文件');
+      return;
+    }
+    
+    setIsProcessing(true);
+    
+    try {
+      // 添加用户消息
+      setMessages(prev => [...prev, {
+        sender: 'user',
+        text: `处理文档: ${uploadedFiles.map(f => f.filename).join(', ')}`
+      }]);
+      
+      // 处理文档
+      const fileId = uploadedFiles[0].id;
+      console.log("Processing file with ID:", fileId);
+      await processDocument(fileId, taskType);
+      
+      // 轮询结果
+      pollForResults(fileId, handleTextUpdate);
+    } catch (err) {
+      console.error("Error in handleProcessDocument:", err);
       setError(err.message || 'An error occurred');
     } finally {
-      setIsLoading(false);
       setIsProcessing(false);
     }
   };
@@ -201,36 +183,9 @@ function App() {
     // 如果没有输入消息但有上传文件，则处理文件
     else if (filesUploaded) {
       // 使用默认任务类型处理文件
-      handleProcessDocument(taskType);
+      handleProcessDocument('TASK1');
     }
   };
-
-  // 添加键盘快捷键处理
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Ctrl/Cmd + / 打开帮助
-      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
-        e.preventDefault();
-        setShowHelp(true);
-      }
-      
-      // Ctrl/Cmd + N 新建对话
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        e.preventDefault();
-        handleNewChat();
-      }
-      
-      // Esc 关闭模态框
-      if (e.key === 'Escape') {
-        setShowSettings(false);
-        setShowHelp(false);
-        setShowExport(false);
-      }
-    };
-    
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   // 监听窗口大小变化
   useEffect(() => {
@@ -333,7 +288,14 @@ function App() {
             <h2 className="text-lg font-medium text-white">File Upload</h2>
           </div>
           <div className="flex-1 p-4 overflow-y-auto">
-            <UploadBox files={files} setFiles={setFiles} />
+            <UploadBox 
+              files={files}
+              setFiles={setFiles}
+              onDrop={handleDrop}
+              onFileChange={handleFileChange}
+              fileInputRef={fileInputRef}
+              uploadedFiles={uploadedFiles}
+            />
           </div>
         </div>
       )}

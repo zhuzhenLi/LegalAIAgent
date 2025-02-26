@@ -1,6 +1,7 @@
 import os
 import uuid
 from typing import Optional
+from fastapi import UploadFile
 
 class LocalStorageService:
     """本地文件存储服务"""
@@ -67,4 +68,29 @@ class LocalStorageService:
             return False
         
         os.remove(file_path)
-        return True 
+        return True
+
+async def save_uploaded_file(file: UploadFile, upload_dir: str = "uploads") -> str:
+    """
+    保存上传的文件到指定目录
+    
+    Args:
+        file: 上传的文件
+        upload_dir: 保存目录，默认为"uploads"
+        
+    Returns:
+        str: 保存后的文件路径
+    """
+    # 创建上传目录
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # 生成唯一文件名
+    file_extension = os.path.splitext(file.filename)[1]
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = os.path.join(upload_dir, unique_filename)
+    
+    # 保存文件
+    with open(file_path, "wb") as f:
+        f.write(await file.read())
+    
+    return file_path 

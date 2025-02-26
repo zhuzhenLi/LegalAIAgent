@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.routers.documents import uploaded_files
+import re
+from app.services.pdf_service import extract_text_from_pdf
 
 router = APIRouter(
-    prefix="/ai",
     tags=["ai"]
 )
 
@@ -19,13 +20,37 @@ class ProcessRequest(BaseModel):
             }
         }
 
+# 添加这个函数来处理不同任务类型的文本
+def process_text_by_task(text, task_type):
+    """
+    根据任务类型处理文本
+    
+    Args:
+        text: 要处理的文本
+        task_type: 任务类型
+        
+    Returns:
+        str: 处理结果
+    """
+    # 提取第一句话
+    match = re.search(r'([^.!?]+[.!?])', text)
+    if match:
+        first_sentence = match.group(1).strip()
+        result_content = f'文档的第一句话是：\n\n"{first_sentence}"'
+    else:
+        # 如果没有找到句号等标点，则返回前100个字符
+        first_part = text[:100].strip() + "..." if len(text) > 100 else text.strip()
+        result_content = f'文档的开头内容是：\n\n"{first_part}"'
+    
+    return result_content
+
 @router.post("/process")
-async def process_document_route(request: ProcessRequest):
+async def process_document(request: ProcessRequest):
     """
     处理文档
     
     Args:
-        request: 包含文档ID和任务类型的请求
+        request: 包含文件ID和任务类型的请求
         
     Returns:
         dict: 处理结果
@@ -37,39 +62,26 @@ async def process_document_route(request: ProcessRequest):
         raise HTTPException(status_code=404, detail=f"Document with ID {file_id} not found")
     
     document = uploaded_files[file_id]
-    
-    # 更新文档状态
-    document["status"] = "processing"
+    file_path = document["file_path"]
     
     try:
-        # 获取文本内容
-        text = document["text"]
+        # 更新文档状态为处理中
+        document["status"] = "processing"
         
-        # 根据任务类型选择不同的行
-        lines = text.split('\n')
+        # 提取文本
+        text = extract_text_from_pdf(file_path)
         
-        result_content = ""
-        if task_type == "TASK1" and len(lines) > 0:
-            result_content = f"TASK1 结果: {lines[0]}"
-        elif task_type == "TASK2" and len(lines) > 1:
-            result_content = f"TASK2 结果: {lines[1]}"
-        elif task_type == "TASK3" and len(lines) > 2:
-            result_content = f"TASK3 结果: {lines[2]}"
-        elif task_type == "TASK4" and len(lines) > 3:
-            result_content = f"TASK4 结果: {lines[3]}"
-        elif task_type == "TASK5" and len(lines) > 4:
-            result_content = f"TASK5 结果: {lines[4]}"
-        else:
-            result_content = f"{task_type} 结果: 无法获取指定行，PDF内容不足"
+        # 根据任务类型处理文本
+        result = process_text_by_task(text, task_type)
         
-        # 存储处理结果
-        document["result"] = result_content
+        # 更新文档状态和结果
         document["status"] = "completed"
+        document["result"] = result
         
         return {"status": "success", "message": "Document processed successfully"}
-        
     except Exception as e:
         document["status"] = "failed"
+        document["error"] = str(e)
         raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
 
 @router.get("/result/{file_id}")

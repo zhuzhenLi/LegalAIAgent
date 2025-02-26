@@ -4,7 +4,7 @@ import io from 'socket.io-client';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 let socket = null;
 
-export const uploadFiles = async (files, taskType) => {
+export const uploadFiles = async (files, taskType = "") => {
   const formData = new FormData();
   
   console.log("Files to upload:", files);
@@ -13,7 +13,10 @@ export const uploadFiles = async (files, taskType) => {
     formData.append('files', file);
   });
   
-  formData.append('task_type', taskType);
+  if (taskType) {
+    formData.append('task_type', taskType);
+  }
+  
   console.log("Task type:", taskType);
   
   try {
