@@ -21,18 +21,21 @@ Legal AI Assistant is a web application that combines document processing capabi
 ## 🏗️ Project Structure
 
 ### System Architecture
-┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-│ Frontend │────▶│ Backend │────▶│ Database │
-│ (React) │◀────│ (FastAPI) │◀────│ (PostgreSQL)│
-└─────────────┘ └─────────────┘ └─────────────┘
-│
-▼
+```
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│  Frontend   │───▶│  Backend    │───▶│  Database   │
+│  (React)    │◀───│  (FastAPI)  │◀───│(PostgreSQL)│
+└─────────────┘   └─────────────┘   └─────────────┘
+        │
+        ▼
 ┌─────────────┐
-│ File Storage│
-│ (Local) │
+│File Storage │
+│  (Local)    │
 └─────────────┘
+```
 
 ### Frontend Structure (React)
+```
 frontend/
 ├── public/ # Static files
 ├── src/
@@ -55,9 +58,9 @@ frontend/
 │ ├── App.js # Main application component
 │ └── index.js # Application entry point
 └── package.json # Dependencies and scripts
- 
+ ```
 ### Backend Structure (FastAPI)
-
+```
 backend/
 ├── app/
 │ ├── routers/ # API route definitions
@@ -94,7 +97,7 @@ backend/
 ├── diagnose_db.py # Database diagnostic tool
 └── requirements.txt # Python dependencies
 
-
+```
 ### Database Structure (PostgreSQL)
 
 The application uses PostgreSQL with the following table structure:
