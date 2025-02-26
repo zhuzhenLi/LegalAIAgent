@@ -1,11 +1,17 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from app.config import settings
+import os
+from dotenv import load_dotenv
 
-# 创建数据库引擎
-SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# 加载环境变量
+load_dotenv()
+
+# 获取数据库连接URL
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://ligege:923180@localhost/legal_ai")
+
+# 创建引擎
+engine = create_engine(DATABASE_URL)
 
 # 创建会话工厂
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -24,5 +30,6 @@ def get_db():
 # 创建所有表
 def create_tables():
     # 导入所有模型以确保它们被注册到Base元数据
-    from app.models import Base, Document, Result
+    # 注意：这里的导入应该放在函数内部，避免循环导入
+    from .db.models import User, Session, Message, Document
     Base.metadata.create_all(bind=engine)

@@ -1,10 +1,19 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from app.routers import documents, ai
+from .database import engine
+from .models import Base
+from .routers import documents, ai
+import os
 
-# 创建 FastAPI 应用实例
-app = FastAPI(title="PDF处理系统")
+# 创建上传目录
+os.makedirs("uploads", exist_ok=True)
+
+# 创建应用
+app = FastAPI(title="Legal AI API")
+
+# 创建数据库表
+Base.metadata.create_all(bind=engine)
 
 # 配置跨域资源共享(CORS)
 app.add_middleware(
@@ -27,8 +36,8 @@ app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(ai.router, prefix="/ai", tags=["ai"])
 
 @app.get("/")
-async def root():
-    return {"message": "PDF处理系统API"}
+def read_root():
+    return {"message": "Welcome to Legal AI API"}
 
 @app.post("/upload")
 async def upload_redirect(request: Request):
