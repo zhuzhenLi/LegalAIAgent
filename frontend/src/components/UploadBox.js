@@ -1,10 +1,14 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import axios from 'axios';
 
-const UploadBox = ({ files, setFiles, onDrop: propOnDrop, onFileChange, fileInputRef: externalFileInputRef, uploadedFiles = [] }) => {
+const UploadBox = ({ files, setFiles, onDrop: propOnDrop, onFileChange, fileInputRef: externalFileInputRef, uploadedFiles = [], userId, sessionId, onUploadSuccess }) => {
   // 如果没有提供外部ref，则创建一个内部ref
   const internalFileInputRef = useRef(null);
   const fileInputRef = externalFileInputRef || internalFileInputRef;
+
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const onDrop = useCallback(acceptedFiles => {
     console.log("Files dropped:", acceptedFiles);
@@ -101,6 +105,41 @@ const UploadBox = ({ files, setFiles, onDrop: propOnDrop, onFileChange, fileInpu
     }
   };
 
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+  
+  const handleUpload = async () => {
+    if (!file) return;
+    
+    setUploading(true);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('user_id', userId);
+    if (sessionId) {
+      formData.append('session_id', sessionId);
+    }
+    
+    try {
+      const response = await axios.post('/api/documents/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      setUploading(false);
+      setFile(null);
+      
+      if (onUploadSuccess) {
+        onUploadSuccess(response.data);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="w-full flex flex-col h-full">
       <div 
@@ -191,6 +230,16 @@ const UploadBox = ({ files, setFiles, onDrop: propOnDrop, onFileChange, fileInpu
           </ul>
         </div>
       )}
+
+      <div className="mt-4">
+        <input type="file" onChange={handleFileChange} />
+        <button 
+          onClick={handleUpload} 
+          disabled={!file || uploading}
+        >
+          {uploading ? 'Uploading...' : 'Upload Document'}
+        </button>
+      </div>
     </div>
   );
 };

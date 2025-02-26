@@ -1,6 +1,6 @@
 import fitz  # PyMuPDF库，用于处理PDF文件
 from typing import List
-import PyPDF2
+import PyPDF2  # 备用PDF处理库
 import os
 import re
 import docx  # 用于处理Word文档
@@ -11,12 +11,24 @@ import pytesseract  # 用于OCR识别
 # from .storage_service import LocalStorageService
 
 class PDFService:
+    """
+    PDF服务类，提供异步PDF处理功能
+    主要用于未来扩展，目前系统主要使用独立函数
+    """
     def __init__(self):
         # self.storage = LocalStorageService()  # 初始化存储服务
         pass
     
     async def extract_text(self, file_path: str) -> str:
-        """从PDF文件中提取文本内容"""
+        """
+        异步从PDF文件中提取文本内容
+        
+        Args:
+            file_path: PDF文件路径
+            
+        Returns:
+            str: 提取的文本
+        """
         doc = fitz.open(file_path)  # 打开PDF文件
         text = ""
         for page in doc:  # 遍历每一页
@@ -24,7 +36,16 @@ class PDFService:
         return text
     
     async def save_pdf(self, file_data: bytes, filename: str) -> str:
-        """保存PDF文件到存储系统"""
+        """
+        异步保存PDF文件到存储系统
+        
+        Args:
+            file_data: 文件二进制数据
+            filename: 文件名
+            
+        Returns:
+            str: 保存的文件路径
+        """
         # return await self.storage.save_file(file_data, filename)
         pass
 
@@ -79,10 +100,10 @@ def extract_text_from_image(file_path):
 # 这个函数被路由直接调用，不需要创建PDFService实例
 def extract_text_from_pdf(file_path):
     """
-    从PDF文件中提取文本
+    从PDF文件中提取文本，支持多种文件格式
     
     Args:
-        file_path: PDF文件路径
+        file_path: 文件路径
         
     Returns:
         str: 提取的文本
