@@ -3,17 +3,23 @@ import UploadBox from './components/UploadBox';
 import ChatBox from './components/ChatBox';
 import ChatHistory from './components/ChatHistory';
 import ActionButtons from './components/ActionButtons';
-import { uploadFiles, connectWebSocket, pollForResults } from './api';
+import { uploadFiles, connectWebSocket, pollForResults, processDocument } from './api';
 import Logo from './components/Logo';
+import axios from 'axios';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const TASK_TYPES = [
-  { id: 'lawsuit', name: 'Generate Legal Document' },
-  { id: 'defense', name: 'Generate Defense Document' }
+  { id: 'TASK1', name: 'Analyze Documents' },
+  { id: 'TASK2', name: 'Build Persuasive Arguments' },
+  { id: 'TASK3', name: 'Refine Legal Strategy' },
+  { id: 'TASK4', name: 'Ask About the Law' },
+  { id: 'TASK5', name: 'Find a Case' }
 ];
 
 function App() {
   const [files, setFiles] = useState([]);
-  const [taskType, setTaskType] = useState('lawsuit');
+  const [taskType, setTaskType] = useState('TASK1');
   const [messages, setMessages] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -32,6 +38,7 @@ function App() {
   const [showExport, setShowExport] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showSidebar, setShowSidebar] = useState(!isMobile);
+  const [filesUploaded, setFilesUploaded] = useState(false);
 
   // Handle text updates from WebSocket or polling
   const handleTextUpdate = (text) => {
@@ -60,24 +67,35 @@ function App() {
       setIsProcessing(true);
       setIsTyping(true);
       
-      // Add user message
-      const userMessage = `Uploaded ${files.length} file(s), requesting to ${
-        taskType === 'lawsuit' ? 'generate legal document' : 'generate defense document'
-      }`;
+      // 添加用户消息，显示上传的文件名
+      const fileNames = files.map(file => file.name).join(', ');
+      const userMessage = `Uploaded files: ${fileNames}`;
       
       setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
       
-      // Upload files to backend
+      // 上传文件到后端
       const response = await uploadFiles(files, taskType);
-      const { session_id } = response;
-      setSessionId(session_id);
       
-      // Use WebSocket or polling for real-time updates
-      if (window.WebSocket) {
-        const cleanup = connectWebSocket(session_id, handleTextUpdate);
-        return () => cleanup();
+      // 设置文件已上传标志
+      setFilesUploaded(true);
+      
+      // 显示收到的PDF名称
+      if (response.documents && response.documents.length > 0) {
+        const receivedFiles = response.documents.map(doc => doc.filename).join(', ');
+        setMessages(prev => [...prev, { 
+          sender: 'ai', 
+          text: `Received PDF files: ${receivedFiles}` 
+        }]);
+        
+        const fileId = response.documents[0].id;
+        
+        // 处理文档
+        await processDocument(fileId, taskType);
+        
+        // 轮询结果
+        await pollForResults(fileId, handleTextUpdate);
       } else {
-        await pollForResults(session_id, handleTextUpdate);
+        throw new Error('No document ID returned from server');
       }
     } catch (err) {
       setError(err.message || 'An error occurred');
@@ -111,33 +129,80 @@ function App() {
     // loadChatMessages(id);
   };
 
-  const handleActionButton = (action) => {
+  const handleActionButton = (taskId, actionLabel) => {
+    console.log("Action button clicked:", taskId, actionLabel);
+    if (!files.length) {
+      setError("Please upload a document first");
+      return;
+    }
+    
+    // 显示用户选择的操作和文件名
+    const fileNames = files.map(file => file.name).join(', ');
     setMessages(prev => [...prev, { 
       sender: 'user', 
-      text: `Please ${action}` 
+      text: `Please ${actionLabel} for files: ${fileNames}` 
     }]);
-    // Here you should handle different action buttons
-    // processAction(action);
+    
+    // 处理文档
+    handleProcessDocument(taskId);
+  };
+
+  const handleProcessDocument = async (taskType) => {
+    console.log("Processing document with task type:", taskType);
+    try {
+      setIsLoading(true);
+      setError(null);
+      setIsProcessing(true);
+      setIsTyping(true);
+      
+      // 上传文件到后端
+      const response = await uploadFiles(files, taskType);
+      
+      // 设置文件已上传标志
+      setFilesUploaded(true);
+      
+      // 显示收到的PDF名称
+      if (response.documents && response.documents.length > 0) {
+        const receivedFiles = response.documents.map(doc => doc.filename).join(', ');
+        setMessages(prev => [...prev, { 
+          sender: 'ai', 
+          text: `Received PDF files: ${receivedFiles}` 
+        }]);
+        
+        const fileId = response.documents[0].id;
+        
+        // 处理文档
+        await processDocument(fileId, taskType);
+        
+        // 轮询结果
+        await pollForResults(fileId, handleTextUpdate);
+      } else {
+        throw new Error('No document ID returned from server');
+      }
+    } catch (err) {
+      setError(err.message || 'An error occurred');
+    } finally {
+      setIsLoading(false);
+      setIsProcessing(false);
+    }
   };
 
   const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() && !filesUploaded) return;
     
-    setMessages(prev => [...prev, { sender: 'user', text: inputMessage }]);
-    setInputMessage('');
-    
-    // 这里应该调用API发送消息
-    // sendMessageToBackend(inputMessage);
-    
-    // 模拟响应
-    setIsTyping(true);
-    setTimeout(() => {
-      setMessages(prev => [...prev, { 
-        sender: 'ai', 
-        text: `I received your message: "${inputMessage}". How can I help you further?` 
-      }]);
-      setIsTyping(false);
-    }, 2000);
+    // 如果有输入消息，则发送消息
+    if (inputMessage.trim()) {
+      setMessages(prev => [...prev, { sender: 'user', text: inputMessage }]);
+      setInputMessage('');
+      
+      // 这里应该调用API发送消息
+      // sendMessageToBackend(inputMessage);
+    } 
+    // 如果没有输入消息但有上传文件，则处理文件
+    else if (filesUploaded) {
+      // 使用默认任务类型处理文件
+      handleProcessDocument(taskType);
+    }
   };
 
   // 添加键盘快捷键处理
@@ -248,7 +313,7 @@ function App() {
               
               <button
                 onClick={handleSendMessage}
-                disabled={isProcessing || !inputMessage.trim()}
+                disabled={isProcessing || (!inputMessage.trim() && !filesUploaded)}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-700 hover:bg-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
               >
                 <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
