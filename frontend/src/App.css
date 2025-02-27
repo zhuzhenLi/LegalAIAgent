@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* App.css */
 .app-container {
   display: flex;
@@ -45,3 +49,20 @@
 .slide-in {
   animation: slideIn 0.3s ease-in-out;
 }
+
+/* 自定义样式 */
+@layer components {
+  .chat-message {
+    @apply p-4 rounded-lg mb-4 max-w-[75%];
+  }
+
+  .user-message {
+    @apply bg-primary-100 text-primary-900 self-end;
+  }
+
+  .ai-message {
+    @apply bg-white border border-secondary-200 text-secondary-900 self-start;
+  }
+}
+
+/* 添加更多自定义样式 */

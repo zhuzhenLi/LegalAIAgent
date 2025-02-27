@@ -10,7 +10,7 @@ const UploadBox = ({ files, setFiles, onDrop: propOnDrop, onFileChange, fileInpu
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  const onDrop = useCallback(acceptedFiles => {
+  const handleDrop = useCallback(acceptedFiles => {
     console.log("Files dropped:", acceptedFiles);
     if (propOnDrop) {
       propOnDrop(acceptedFiles);
@@ -28,8 +28,14 @@ const UploadBox = ({ files, setFiles, onDrop: propOnDrop, onFileChange, fileInpu
     }
   };
 
+  // 添加点击处理函数
+  const handleClick = () => {
+    fileInputRef.current.click();
+  };
+
+  // eslint-disable-next-line no-unused-vars
   const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({ 
-    onDrop,
+    onDrop: handleDrop,
     accept: {
       'application/pdf': ['.pdf'],
       'image/jpeg': ['.jpg', '.jpeg'],
@@ -98,13 +104,6 @@ const UploadBox = ({ files, setFiles, onDrop: propOnDrop, onFileChange, fileInpu
     );
   };
 
-  // 手动触发文件选择
-  const handleClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
   };
@@ -141,87 +140,56 @@ const UploadBox = ({ files, setFiles, onDrop: propOnDrop, onFileChange, fileInpu
   };
 
   return (
-    <div className="w-full flex flex-col h-full">
+    <div className="space-y-4">
       <div 
-        className={`flex-1 flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors
-          ${isDragActive ? 'border-primary-500 bg-primary-50' : 'border-secondary-300 hover:border-primary-400'}`}
         onClick={handleClick}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const files = Array.from(e.dataTransfer.files);
-          onDrop(files);
-        }}
+        className="border-2 border-dashed border-secondary-300 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-secondary-50"
       >
         <input 
-          type="file"
+          type="file" 
           ref={fileInputRef}
           onChange={handleFileInputChange}
           style={{ display: 'none' }}
           multiple
           accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt"
         />
-        
-        <svg className="mx-auto h-12 w-12 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <svg className="w-10 h-10 text-secondary-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
-        
-        <p className="mt-2 text-secondary-600">
-          {isDragActive ? 
-            'Drop files here...' : 
-            'Drag and drop files here, or click to select files'}
+        <p className="text-secondary-600 text-center">
+          {isDragActive ? 'Drop files here' : 'Drag and drop files here, or click to select files'}
         </p>
         <p className="text-xs text-secondary-500 mt-1">
           Supports PDF, Word, images and more
         </p>
       </div>
-
-      {fileRejections.length > 0 && (
-        <div className="mt-2 text-sm text-red-600">
-          {fileRejections.map(({ file, errors }) => (
-            <div key={file.path}>
-              <strong>{file.path}</strong> - {errors.map(e => e.message).join(', ')}
-            </div>
-          ))}
-        </div>
-      )}
-
+      
       {files.length > 0 && (
-        <div className="mt-4">
-          <h3 className="text-sm font-medium text-secondary-700">Selected Files:</h3>
-          <ul className="mt-2 divide-y divide-secondary-200">
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-secondary-50 px-4 py-2 border-b">
+            <h3 className="text-sm font-medium text-secondary-700">Selected Files</h3>
+          </div>
+          <ul className="divide-y divide-secondary-200">
             {files.map((file, index) => (
-              <li key={index} className="py-2 flex items-center justify-between">
+              <li key={index} className="px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center">
                   {isFileUploaded(file.name) && (
-                    <span className="mr-2 text-green-500">✅</span>
+                    <span className="mr-2 text-green-500" role="img" aria-label="Checkmark">✅</span>
                   )}
                   {getFileIcon(file.name)}
-                  <span className="ml-2 text-sm text-secondary-700">{file.name}</span>
+                  <span className="ml-2 text-sm text-secondary-700 truncate max-w-xs">{file.name}</span>
                   <span className="ml-2 text-xs text-secondary-500">
-                    ({Math.round(file.size / 1024)} KB)
+                    {(file.size / 1024).toFixed(1)} KB
                   </span>
                 </div>
-                <button
+                <button 
                   onClick={(e) => {
                     e.stopPropagation();
                     removeFile(index);
                   }}
-                  className="text-secondary-500 hover:text-secondary-700"
+                  className="text-secondary-400 hover:text-secondary-600"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -230,16 +198,6 @@ const UploadBox = ({ files, setFiles, onDrop: propOnDrop, onFileChange, fileInpu
           </ul>
         </div>
       )}
-
-      <div className="mt-4">
-        <input type="file" onChange={handleFileChange} />
-        <button 
-          onClick={handleUpload} 
-          disabled={!file || uploading}
-        >
-          {uploading ? 'Uploading...' : 'Upload Document'}
-        </button>
-      </div>
     </div>
   );
 };

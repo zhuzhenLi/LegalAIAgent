@@ -1,88 +1,53 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useRef } from 'react';
 
-const ChatBox = ({ sessionId, userId }) => {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  // 加载历史消息
-  useEffect(() => {
-    if (sessionId) {
-      loadMessages();
-    }
-  }, [sessionId]);
-  
-  const loadMessages = async () => {
-    try {
-      const response = await axios.get(`/api/sessions/${sessionId}/messages`);
-      setMessages(response.data);
-    } catch (error) {
-      console.error('Failed to load messages:', error);
-    }
+const ChatBox = ({ messages, isTyping }) => {
+  const messagesEndRef = useRef(null);
+
+  // 滚动到底部
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-  
-  const sendMessage = async () => {
-    if (!input.trim() || !sessionId) return;
-    
-    setLoading(true);
-    
-    // 添加用户消息到UI（乐观更新）
-    const userMessage = {
-      id: 'temp-' + Date.now(),
-      content: input,
-      sender: 'user',
-      created_at: new Date().toISOString()
-    };
-    
-    setMessages([...messages, userMessage]);
-    setInput('');
-    
-    try {
-      const response = await axios.post(`/api/sessions/${sessionId}/messages`, {
-        content: input,
-        sender: 'user'
-      });
-      
-      // 更新消息列表，包括AI响应
-      loadMessages();
-      
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      // 回滚乐观更新
-      setMessages(messages);
-      setInput(userMessage.content);
-    }
-    
-    setLoading(false);
-  };
-  
+
+  React.useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
   return (
-    <div className="chat-box">
-      <div className="messages">
-        {messages.map(message => (
-          <div 
-            key={message.id} 
-            className={`message ${message.sender === 'user' ? 'user-message' : 'ai-message'}`}
-          >
-            {message.content}
-          </div>
-        ))}
-        {loading && <div className="message ai-message loading">AI is typing...</div>}
-      </div>
-      
-      <div className="input-area">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-          disabled={loading}
-        />
-        <button onClick={sendMessage} disabled={loading || !input.trim()}>
-          Send
-        </button>
-      </div>
+    <div className="flex-1 p-4 overflow-y-auto">
+      {messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full text-secondary-500">
+          <svg className="w-12 h-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+          <p>No messages yet</p>
+          <p className="text-sm mt-2">Upload a document or start typing to begin</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`chat-message ${
+                  message.sender === 'user' ? 'user-message' : 'ai-message'
+                } slide-in`}
+              >
+                {message.text || message.content}
+              </div>
+            </div>
+          ))}
+          {isTyping && (
+            <div className="flex justify-start">
+              <div className="chat-message ai-message typing-animation">
+                AI is typing
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      )}
     </div>
   );
 };

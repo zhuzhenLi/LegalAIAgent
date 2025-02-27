@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from .database import engine
 from .models import Base
-from .routers import documents, ai
+from .routers.documents import router as documents_router
+from .routers.ai import router as ai_router
 import os
 
 # 创建上传目录
@@ -31,9 +32,9 @@ async def add_csp_header(request: Request, call_next):
     response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-eval'; connect-src 'self' http://localhost:8000; style-src 'self' 'unsafe-inline';"
     return response
 
-# 注册路由
-app.include_router(documents.router, prefix="/documents", tags=["documents"])
-app.include_router(ai.router, prefix="/ai", tags=["ai"])
+# 注册路由 - 只注册存在的路由器
+app.include_router(documents_router, tags=["documents"])
+app.include_router(ai_router, prefix="/ai", tags=["ai"])
 
 @app.get("/")
 def read_root():
@@ -42,7 +43,7 @@ def read_root():
 @app.post("/upload")
 async def upload_redirect(request: Request):
     """重定向到/documents/upload"""
-    return RedirectResponse(url="/documents/upload")
+    return RedirectResponse(url="/upload")
 
 @app.post("/process")
 async def process_redirect(request: Request):

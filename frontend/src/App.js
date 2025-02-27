@@ -7,6 +7,8 @@ import { uploadFiles, processDocument, pollForResults } from './api';
 import Logo from './components/Logo';
 import './App.css';
 
+console.log("App.js is being loaded");
+
 function App() {
   const [files, setFiles] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -83,12 +85,16 @@ function App() {
       return;
     }
     
+    console.log("Starting file upload with files:", filesToUpload);
+    
     try {
       // 上传文件，使用默认任务类型
+      console.log("Calling uploadFiles API with task_type: default");
       const response = await uploadFiles(filesToUpload, "default");
       console.log("Upload response:", response);
       
       if (response && response.documents) {
+        console.log("Upload successful, documents:", response.documents);
         // 更新上传成功的文件列表
         setUploadedFiles(response.documents.map(doc => ({
           id: doc.id,
@@ -107,7 +113,17 @@ function App() {
       }
     } catch (err) {
       console.error("Upload error:", err);
-      setError(err.message || 'Error uploading files');
+      // 更详细的错误信息
+      if (err.response) {
+        console.error("Error response:", err.response);
+        setError(`Server error: ${err.response.status} - ${err.response.data.detail || err.message}`);
+      } else if (err.request) {
+        console.error("No response received:", err.request);
+        setError("No response from server. Please check if the backend is running.");
+      } else {
+        console.error("Error message:", err.message);
+        setError(err.message || 'Error uploading files');
+      }
       return null;
     }
   };
@@ -145,26 +161,40 @@ function App() {
       return;
     }
     
-    setIsProcessing(true);
-    
     try {
-      // 添加用户消息
-      setMessages(prev => [...prev, {
-        sender: 'user',
-        text: `处理文档: ${uploadedFiles.map(f => f.filename).join(', ')}`
-      }]);
+      setIsProcessing(true);
+      
+      // 获取所有上传文件的ID
+      const documentIds = uploadedFiles.map(file => file.id);
+      console.log("Processing files with IDs:", documentIds);
       
       // 处理文档
-      const fileId = uploadedFiles[0].id;
-      console.log("Processing file with ID:", fileId);
-      await processDocument(fileId, taskType);
+      const processResponse = await processDocument(documentIds, taskType);
+      console.log("Process response:", processResponse);
       
-      // 轮询结果
-      pollForResults(fileId, handleTextUpdate);
+      if (processResponse && processResponse.task_id) {
+        // 轮询结果
+        const taskId = processResponse.task_id;
+        
+        // 使用轮询获取结果
+        await pollForResults(taskId, (text) => {
+          handleTextUpdate(text);
+        });
+        
+        setIsProcessing(false);
+      } else {
+        console.error("Invalid process response:", processResponse);
+        setError('处理文档失败：无效的响应');
+        setIsProcessing(false);
+      }
     } catch (err) {
       console.error("Error in handleProcessDocument:", err);
-      setError(err.message || 'An error occurred');
-    } finally {
+      if (err.response) {
+        console.error("Error response:", err.response.data);
+        setError(`处理文档失败：${err.response.status} - ${err.response.data.detail || err.message}`);
+      } else {
+        setError(`处理文档失败：${err.message}`);
+      }
       setIsProcessing(false);
     }
   };
@@ -199,28 +229,27 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // 检查组件是否正确渲染
+  useEffect(() => {
+    console.log("App component mounted");
+    console.log("Current state:", {
+      files,
+      uploadedFiles,
+      messages,
+      isProcessing,
+      isTyping,
+      chatHistory,
+      isMobile,
+      showSidebar
+    });
+  }, [files, uploadedFiles, messages, isProcessing, isTyping, chatHistory, isMobile, showSidebar]);
+
   return (
     <div className="flex h-screen bg-secondary-50">
-      {/* 移动版侧边栏切换按钮 */}
-      {isMobile && (
-        <button
-          onClick={() => setShowSidebar(!showSidebar)}
-          className="fixed z-20 bottom-4 left-4 p-2 rounded-full bg-primary-600 text-white shadow-lg"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {showSidebar ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
-        </button>
-      )}
-      
-      {/* 左侧边栏 - 条件渲染 */}
+      {/* 左侧边栏 */}
       {(showSidebar || !isMobile) && (
         <div className={`${isMobile ? 'fixed inset-0 z-10 w-64' : 'w-64'} bg-white border-r border-secondary-200 flex flex-col`}>
-          <div className="p-4 border-b border-secondary-200 bg-primary-700">
+          <div className="p-4 border-b border-secondary-200 bg-primary-700 text-white">
             <Logo size="md" variant="default" />
           </div>
           <ChatHistory 
@@ -302,7 +331,7 @@ function App() {
 
       {/* Error notification */}
       {error && (
-        <div className="p-4 bg-red-50 border-l-4 border-red-500 mb-4">
+        <div className="fixed bottom-4 right-4 p-4 bg-red-50 border-l-4 border-red-500 rounded shadow-lg max-w-md">
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">

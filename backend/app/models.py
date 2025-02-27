@@ -94,6 +94,7 @@ class Document(Base):
     # 关系
     user = relationship("User", back_populates="documents")
     session = relationship("Session", back_populates="documents")
+    results = relationship("Result", back_populates="document", cascade="all, delete-orphan")
     
     # 多对多关系（可选）
     # sessions = relationship("Session", secondary=document_session, back_populates="all_documents")
